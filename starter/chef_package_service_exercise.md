@@ -1,6 +1,6 @@
 # Managing Packages & Services 
 
-This exercise quides you on how to control managing packages and services as resources in Chef.
+This exercise guides you on how to control managing packages and services as resources in Chef.
 
 
 ### Updating apt cache periodically
