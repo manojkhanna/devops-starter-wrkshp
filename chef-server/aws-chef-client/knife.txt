@@ -1,0 +1,56 @@
+knife role create test
+
+{
+  "name": "web_server",
+  "description": "A role to configure our front-line web servers",
+  "json_class": "Chef::Role",
+  "default_attributes": {
+    "nginx": {
+      "log_location": "/var/log/nginx.log"
+    }
+  },
+  "override_attributes": {
+    "nginx": {
+      "gzip": "on"
+    }
+  },
+  "chef_type": "role",
+  "run_list": [
+    "recipe[apt]",
+    "recipe[nginx]"
+  ],
+  "env_run_lists": {
+    "production": [
+      "recipe[nginx::prod]"
+    ],
+    "testing": [
+      "recipe[nginx::test]"
+    ]
+  }
+}
+
+knife environment create development
+
+{
+  "name": "development",
+  "description": "The master development branch",
+  "cookbook_versions": {
+    "nginx": "<= 1.1.0",
+    "apt": "= 0.0.1"
+  },
+  "json_class": "Cheff:Environment",
+  "chef_type": "environment",
+  "default_attributes": {
+  },
+  "override_attributes": {
+    "nginx": {
+      "listen": [
+        "80",
+        "443"
+      ]
+    },
+    "mysql": {
+      "root_pass": "root"
+    }
+  }
+}

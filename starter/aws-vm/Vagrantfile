@@ -1,0 +1,25 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+unless Vagrant.has_plugin?("vagrant-aws")
+  raise 'vagrant-aws plugin is not installed!'
+end
+
+Vagrant.configure("2") do |config|
+  # base box to use for aws
+  config.vm.box = "dummy"
+  config.vm.box_url = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
+
+  # virtualbox customizaations and settings
+  config.vm.provider :aws do |aws, override|
+    aws.access_key_id = ENV['VAGRANT_AWS_ACCESS_KEY']
+    aws.secret_access_key = ENV['VAGRANT_AWS_SECRET_KEY']
+    aws.ami = ENV['VAGRANT_AWS_AMI_ID'] 
+    aws.region = ENV['VAGRANT_AWS_DEFAULT_REGION']
+    aws.instance_type = "t2.medium"
+    aws.keypair_name = ENV['VAGRANT_AWS_KEYPAIR_NAME']
+    aws.security_groups = ['vagrant-vms-security-group']
+    override.ssh.username = "ubuntu"
+    override.ssh.private_key_path = ENV['VAGRANT_AWS_KEYPAIR_LOC']    
+  end
+
+end

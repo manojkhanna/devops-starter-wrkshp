@@ -1,0 +1,84 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+CHEF_SERVER_SCRIPT = <<EOF.freeze
+apt-get update
+apt-get -y install curl
+
+# ensure the time is up to date
+echo "Synchronizing time..."
+apt-get -y install ntp
+service ntp stop
+sudo ntpd -s time.nist.gov
+service ntp start
+
+# download the Chef server package
+echo "Downloading the Chef server package..."
+if [ ! -f /downloads/chef-server-core_12.14.0-1_amd64.deb ]; then
+  wget -nv -P /downloads https://packages.chef.io/files/stable/chef-server/12.14.0/ubuntu/16.04/chef-server-core_12.14.0-1_amd64.deb
+fi
+
+# install the package
+echo "Installing Chef server..."
+sudo dpkg -i /downloads/chef-server-core_12.14.0-1_amd64.deb
+
+# reconfigure and restart services
+echo "Reconfiguring Chef server..."
+sudo chef-server-ctl reconfigure
+echo "Restarting Chef server..."
+sudo chef-server-ctl restart
+
+# wait for services to be fully available
+echo "Waiting for services..."
+until (curl -D - http://localhost:8000/_status) | grep "200 OK"; do sleep 15s; done
+while (curl http://localhost:8000/_status) | grep "fail"; do sleep 15s; done
+
+# create admin user
+echo "Creating a user and organization..."
+sudo chef-server-ctl user-create admin Anadi Admin anadi.msr@gmail.com insecurepassword --filename admin.pem
+sudo chef-server-ctl org-create agilityroots "Agility Roots Pvt. Ltd." --association_user admin --filename agilityroots-validator.pem
+
+# copy admin RSA private key to share
+echo "Copying admin key to /vagrant/secrets..."
+mkdir -p /vagrant/secrets
+cp -f /home/ubuntu/admin.pem /vagrant/secrets
+
+# install management console
+sudo chef-server-ctl install chef-manage 
+sudo chef-server-ctl reconfigure 
+sudo chef-manage-ctl reconfigure --accept-license
+
+echo "Your Chef server is ready!"
+EOF
+
+unless Vagrant.has_plugin?("vagrant-aws")
+  raise 'vagrant-aws plugin is not installed!'
+end
+
+def set_hostname(server)
+  server.vm.provision 'shell', inline: "hostname #{server.vm.hostname}"
+end
+
+Vagrant.configure(2) do |config|
+  # base box to use for aws
+  config.vm.box = "dummy"
+  config.vm.box_url = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
+
+  config.vm.define 'chef-server' do |cs|
+    cs.vm.provider :aws do |aws, override|
+      aws.access_key_id = ENV['VAGRANT_AWS_ACCESS_KEY']
+      aws.secret_access_key = ENV['VAGRANT_AWS_SECRET_KEY']
+      aws.ami = ENV['VAGRANT_AWS_AMI_ID'] # ubuntu 16.04 for ap-southeast-1
+      aws.region = ENV['VAGRANT_AWS_DEFAULT_REGION']
+      aws.instance_type = "t2.medium"
+      aws.keypair_name = ENV['VAGRANT_AWS_KEYPAIR_NAME']
+      aws.security_groups = ['vagrant-vms-security-group']
+      override.ssh.username = "ubuntu"
+      override.ssh.private_key_path = ENV['VAGRANT_AWS_KEYPAIR_LOC']    
+    end
+    cs.vm.provision 'shell', inline: CHEF_SERVER_SCRIPT.dup
+
+  end
+
+
+end
